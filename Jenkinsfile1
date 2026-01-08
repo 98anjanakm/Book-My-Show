@@ -15,7 +15,7 @@ pipeline {
         }
         stage('Checkout from Git') {
             steps {
-                git branch: 'main', url: 'https://github.com/KastroVKiran/Book-My-Show.git'
+                git branch: 'main', url: 'https://github.com/98anjanakm/Book-My-Show.git'
                 sh 'ls -la'  // Verify files after checkout
             }
         }
