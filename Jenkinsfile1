@@ -3,7 +3,7 @@ pipeline {
 
     tools {
         jdk 'jdk17'
-        nodejs 'node18'
+        nodejs 'node23'
     }
 
     environment {
@@ -50,7 +50,7 @@ pipeline {
             steps {
                 sh '''
                 cd bookmyshow-app
-                npm ci
+                npm install
                 '''
             }
         }
@@ -83,7 +83,7 @@ pipeline {
         stage('Docker Build & Push') {
             steps {
                 dir('bookmyshow-app') {
-                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
+                    withDockerRegistry(credentialsId: 'docker') {
                         sh '''
                         docker build -t $IMAGE_NAME:latest .
                         docker push $IMAGE_NAME:latest
@@ -101,9 +101,11 @@ pipeline {
 
                 docker run -d \
                   --name bms \
-                  -p 3000:3000 \
                   --restart always \
+                  -p 3000:80 \
                   kastrov/bms:latest
+
+                docker ps
                 '''
             }
         }
@@ -112,11 +114,12 @@ pipeline {
     post {
         always {
             emailext(
-                subject: "Build ${currentBuild.result}: ${env.JOB_NAME}",
+                attachLog: true,
+                subject: "Build ${currentBuild.result} - ${env.JOB_NAME}",
                 body: """
                 Job: ${env.JOB_NAME}<br/>
-                Build: ${env.BUILD_NUMBER}<br/>
-                URL: ${env.BUILD_URL}
+                Build Number: ${env.BUILD_NUMBER}<br/>
+                Build URL: ${env.BUILD_URL}<br/>
                 """,
                 to: '98anjanakm@gmail.com'
             )
