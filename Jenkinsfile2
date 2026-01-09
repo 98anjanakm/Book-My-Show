@@ -10,7 +10,7 @@ pipeline {
 
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
-        DOCKER_IMAGE = 'kastrov/bms:latest'
+        DOCKER_IMAGE = 'anjanakm/bms:latest'
         EKS_CLUSTER_NAME = 'ticket-eks'
         AWS_REGION = 'ap-south-1'
     }
@@ -24,7 +24,7 @@ pipeline {
 
         stage('Checkout from Git') {
             steps {
-                git branch: 'main', url: 'https://github.com/KastroVKiran/Book-My-Show.git'
+                git branch: 'main', url: 'https://github.com/98anjanakm/Book-My-Show.git'
                 sh 'ls -la'  // Verify files after checkout
             }
         }
