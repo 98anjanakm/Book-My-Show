@@ -21,7 +21,8 @@ pipeline {
 
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/98anjanakm/Book-My-Show.git'
+                git branch: 'main',
+                    url: 'https://github.com/98anjanakm/Book-My-Show.git'
             }
         }
 
@@ -41,7 +42,10 @@ pipeline {
 
         stage('Quality Gate') {
             steps {
-                waitForQualityGate abortPipeline: false
+                script {
+                    def qg = waitForQualityGate abortPipeline: false
+                    echo "Quality Gate Status: ${qg.status}"
+                }
             }
         }
 
@@ -54,14 +58,16 @@ pipeline {
             }
         }
 
+        /* =========================
+           OWASP DEPENDENCY CHECK (FIXED)
+           ========================= */
         stage('OWASP Dependency Scan') {
             steps {
                 dir('bookmyshow-app') {
                     dependencyCheck additionalArguments: '''
                         --scan .
-                        --disableNodeAudit
-                        --disableYarnAudit
-                        --disableNvdUpdate
+                        --noupdate
+                        --failOnCVSS 11
                     ''',
                     odcInstallation: 'DP-Check'
 
@@ -70,11 +76,17 @@ pipeline {
             }
         }
 
+        /* =========================
+           TRIVY SCAN (NON-BLOCKING)
+           ========================= */
         stage('Trivy File System Scan') {
             steps {
                 sh '''
                 cd bookmyshow-app
-                trivy fs . --severity HIGH,CRITICAL --no-progress || true
+                trivy fs . \
+                  --severity HIGH,CRITICAL \
+                  --no-progress \
+                  --exit-code 0
                 '''
             }
         }
@@ -117,7 +129,7 @@ pipeline {
         always {
             emailext(
                 attachLog: true,
-                subject: "Build ${currentBuild.result} - ${env.JOB_NAME}",
+                subject: "Build ${currentBuild.currentResult} - ${env.JOB_NAME}",
                 body: """
                 Job: ${env.JOB_NAME}<br/>
                 Build Number: ${env.BUILD_NUMBER}<br/>
