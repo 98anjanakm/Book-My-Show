@@ -3,8 +3,11 @@ FROM node:18-alpine AS build
 
 WORKDIR /app
 
+# Fix OpenSSL issue for webpack/react-scripts
+ENV NODE_OPTIONS=--openssl-legacy-provider
+
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY . .
 RUN npm run build
