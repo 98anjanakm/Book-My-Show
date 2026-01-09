@@ -105,7 +105,7 @@ pipeline {
                   --name bms \
                   --restart always \
                   -p 3000:80 \
-                  kastrov/bms:latest
+                  anjanakm/bms:latest
 
                 docker ps
                 '''
