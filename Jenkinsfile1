@@ -8,7 +8,7 @@ pipeline {
 
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
-        IMAGE_NAME = 'kastrov/bms'
+        IMAGE_NAME = 'anjanakm/bms'
     }
 
     stages {
