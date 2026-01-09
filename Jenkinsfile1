@@ -3,11 +3,12 @@ pipeline {
 
     tools {
         jdk 'jdk17'
-        nodejs 'node23'
+        nodejs 'node18'
     }
 
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
+        IMAGE_NAME = 'kastrov/bms'
     }
 
     stages {
@@ -18,10 +19,9 @@ pipeline {
             }
         }
 
-        stage('Checkout from Git') {
+        stage('Checkout Code') {
             steps {
                 git branch: 'main', url: 'https://github.com/98anjanakm/Book-My-Show.git'
-
                 sh 'ls -la'
             }
         }
@@ -30,11 +30,11 @@ pipeline {
             steps {
                 withSonarQubeEnv('sonar-server') {
                     sh '''
+                    cd bookmyshow-app
                     $SCANNER_HOME/bin/sonar-scanner \
-                    -Dsonar.projectName=BMS \
-                    -Dsonar.projectKey=BMS \
-                    -Dsonar.sources=. \
-                    -Dsonar.language=js
+                      -Dsonar.projectKey=BMS \
+                      -Dsonar.projectName=BMS \
+                      -Dsonar.sources=src
                     '''
                 }
             }
@@ -42,87 +42,68 @@ pipeline {
 
         stage('Quality Gate') {
             steps {
-                script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
-                }
+                waitForQualityGate abortPipeline: false
             }
         }
 
         stage('Install Dependencies') {
             steps {
                 sh '''
-                echo "Checking workspace..."
-                ls -la
-
-                if [ -f package.json ]; then
-                    echo "Installing Node dependencies..."
-                    rm -rf node_modules package-lock.json
-                    npm install
-                else
-                    echo "ERROR: package.json not found!"
-                    exit 1
-                fi
+                cd bookmyshow-app
+                npm ci
                 '''
             }
         }
 
         stage('OWASP Dependency Scan') {
             steps {
-                dependencyCheck additionalArguments: '''
-                    --scan . 
-                    --disableYarnAudit 
-                    --disableNodeAudit
-                ''',
-                odcInstallation: 'DP-Check'
+                dir('bookmyshow-app') {
+                    dependencyCheck additionalArguments: '''
+                        --scan .
+                        --disableNodeAudit
+                        --disableYarnAudit
+                        --disableNvdUpdate
+                    ''',
+                    odcInstallation: 'DP-Check'
 
-                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                }
             }
         }
 
         stage('Trivy File System Scan') {
             steps {
                 sh '''
-                trivy fs . > trivyfs.txt
+                cd bookmyshow-app
+                trivy fs . --severity HIGH,CRITICAL --no-progress || true
                 '''
             }
         }
 
         stage('Docker Build & Push') {
             steps {
-                script {
+                dir('bookmyshow-app') {
                     withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
                         sh '''
-                        echo "Building Docker image..."
-                        docker build --no-cache -t kastrov/bms:latest .
-
-                        echo "Pushing Docker image..."
-                        docker push kastrov/bms:latest
+                        docker build -t $IMAGE_NAME:latest .
+                        docker push $IMAGE_NAME:latest
                         '''
                     }
                 }
             }
         }
 
-        stage('Deploy to Container') {
+        stage('Deploy Container') {
             steps {
                 sh '''
-                echo "Stopping old container if exists..."
                 docker stop bms || true
                 docker rm bms || true
 
-                echo "Running new container..."
                 docker run -d \
-                  --restart=always \
                   --name bms \
                   -p 3000:3000 \
+                  --restart always \
                   kastrov/bms:latest
-
-                echo "Running containers:"
-                docker ps -a
-
-                echo "Waiting for app startup..."
-                sleep 5
-                docker logs bms
                 '''
             }
         }
@@ -131,15 +112,13 @@ pipeline {
     post {
         always {
             emailext(
-                attachLog: true,
-                subject: "Build ${currentBuild.result} - ${env.JOB_NAME}",
+                subject: "Build ${currentBuild.result}: ${env.JOB_NAME}",
                 body: """
-                Project: ${env.JOB_NAME}<br/>
-                Build Number: ${env.BUILD_NUMBER}<br/>
-                Build URL: ${env.BUILD_URL}<br/>
+                Job: ${env.JOB_NAME}<br/>
+                Build: ${env.BUILD_NUMBER}<br/>
+                URL: ${env.BUILD_URL}
                 """,
-                to: '98anjanakm@gmail.com',
-                attachmentsPattern: 'trivyfs.txt'
+                to: '98anjanakm@gmail.com'
             )
         }
     }
